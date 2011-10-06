@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<title>Author parsing test</title>
+
+<link type="text/css" href="/static/css/smoothness/jquery-ui-1.8.16.custom.css" rel="Stylesheet" /> 
+<style type="text/css">
+
+#content {
+    max-width: 900px;
+    width: 80%;
+    margin: auto;
+}
+
+div.parseform {
+    width: 45%;
+    margin: 0;
+    padding: 2em 1em;
+}
+
+#content label {
+    display: block;
+}
+
+#indextime {
+    float: left;
+}
+
+#querytime {
+    float: right;
+}
+
+</style>
+
+<script type="text/javascript" src="/static/js/jquery-1.6.2.min.js"></script>
+<script type="text/javascript" src="/static/js/jquery-ui-1.8.16.custom.min.js"></script>
+<script type="text/javascript">
+
+function populateResults(rNode, msg) {
+    rNode.empty();
+    $.each(msg['result'], function(i, section) {
+        console.log(i);
+        console.log(section);
+        rNode.append("<h3>" + section['section'] + "</h3>");
+        rList = $("<ul></ul>");
+        if (section['section'] == 'Variations') {
+        } else {
+            $.each(section['results'], function(j, result) {
+                rList.append("<li>" + result + "</li>");
+            });
+        }
+        rNode.append(rList);
+    });
+}
+
+$(document).ready(function() {
+    $("#index-submit").click(function() {
+        $.ajax({
+            type: "GET",
+            url:  "/index",
+            data: { author: $("#index-author").val() },
+            dataType: 'json',
+            success: function(msg) {
+                populateResults($("#index-results"), msg);
+            }
+        });
+    });
+    $("#query-submit").click(function() {
+        $.ajax({
+            type: "GET",
+            url:  "/query",
+            data: { author: $("#query-author").val() },
+            dataType: 'json',
+            success: function(msg) {
+                populateResults($("#query-results"), msg);
+            }
+        });
+    });
+});
+
+</script>
+</head>
+<body>
+
+<section id="content">
+    <div id="indextime" class="parseform">
+        <label for="author">Index</label>
+        <input type="text" id="index-author" name="index-author"/>
+        <input type="button" id="index-submit" value="Parse" />
+        <div id="index-results">
+        </div>
+    </div>
+    <div id="querytime" class="parseform">
+        <label for="author">Query</label>
+        <input type="text" id="query-author" name="query-author"/>
+        <input type="button" id="query-submit" value="Parse" />
+        <div id="query-results">
+        </div>
+    </div>
+</section>
+
+</body>
+</html>
