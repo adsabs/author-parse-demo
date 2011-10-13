@@ -3,78 +3,189 @@
 <head>
 <title>Author parsing test</title>
 
-<link type="text/css" href="/static/css/smoothness/jquery-ui-1.8.16.custom.css" rel="Stylesheet" /> 
+<link type="text/css" href="{{ base_path }}/static/css/smoothness/jquery-ui-1.8.16.custom.css" rel="Stylesheet" /> 
 <style type="text/css">
 
 #content {
-    max-width: 900px;
-    width: 80%;
+    width: 100%;
     margin: auto;
 }
 
 div.parseform {
-    width: 45%;
+    width: 20%;
     margin: 0;
-    padding: 2em 1em;
+    padding: 1em 0.5em;
+    float: left;
+}
+
+div#synonym {
+    width: auto;
+    max-width: 55%;
+}
+
+div#indextime {
+    clear: both;
 }
 
 #content label {
     display: block;
 }
 
-#indextime {
-    float: left;
+#parse-submit {
+    margin: 20px 40px;
 }
 
-#querytime {
-    float: right;
+#header h1 {
+    float: left;
+    display: inline;
+}
+
+div.results {
+    font-size: 0.8em;
+    font-family: Helvetica, sans-serif;
 }
 
 </style>
 
-<script type="text/javascript" src="/static/js/jquery-1.6.2.min.js"></script>
-<script type="text/javascript" src="/static/js/jquery-ui-1.8.16.custom.min.js"></script>
+<script type="text/javascript" src="{{ base_path }}/static/js/jquery-1.6.2.min.js"></script>
+<script type="text/javascript" src="{{ base_path }}/static/js/jquery-ui-1.8.16.custom.min.js"></script>
 <script type="text/javascript">
 
-function populateResults(rNode, msg) {
-    rNode.empty();
-    $.each(msg['result'], function(i, section) {
-        console.log(i);
-        console.log(section);
-        rNode.append("<h3>" + section['section'] + "</h3>");
-        rList = $("<ul></ul>");
-        if (section['section'] == 'Variations') {
-        } else {
-            $.each(section['results'], function(j, result) {
-                rList.append("<li>" + result + "</li>");
-            });
-        }
-        rNode.append(rList);
+function createList(container, items, id) {
+    if (!items.length) return;
+    listElem = $('<ul id="' + id + '"></ul>');
+    $(items).each(function(i, item) {
+        listElem.append("<li>" + item + "</li>");
     });
+    container.append(listElem);
+}
+
+function uniqueList(list) {
+    var dict = {};
+    var unique = [];
+    $(list).each(function(i, x) {
+        dict[x] = 1;
+    });
+    for (var k in dict) {
+        unique.push(k);
+    }
+    return unique;
 }
 
 $(document).ready(function() {
-    $("#index-submit").click(function() {
-        $.ajax({
-            type: "GET",
-            url:  "/index",
-            data: { author: $("#index-author").val() },
-            dataType: 'json',
-            success: function(msg) {
-                populateResults($("#index-results"), msg);
+    $("#parse-submit").click(function() {
+
+        // get the inital data
+        $(['index','query','synonym']).each(function(i, phase) {
+            console.log(phase);
+            var input = $("#" + phase + "-input").val();
+            if (input.search(/\w+/) != -1) {
+                $.ajax({
+                    method: "GET",
+                    url:  "{{ base_path }}/" + phase,
+                    data: { author: input },
+                    dataType: 'json',
+                    async: false,
+                    success: function(msg) {
+                        var rNode = $("#" + phase + "-results");
+                        rNode.empty();
+                        $.each(msg['result'], function(i, section) {
+                            if (section['names'].length) {
+                                rNode.append("<h3>" + section['section'] + "</h3>");
+                                createList(rNode, section['names'], section['section']);
+                            }
+                        });
+                    }
+                });
             }
         });
-    });
-    $("#query-submit").click(function() {
+
+        // fetch synonyms for the query variations
+        var variations = [];
+        $("#query-results > #variations > li").each(function(i, li) {
+            variations.push($(li).text());
+        });
         $.ajax({
-            type: "GET",
-            url:  "/query",
-            data: { author: $("#query-author").val() },
+            method: "GET",
+            url: "{{ base_path }}/gen_synonyms",
+            data: { author: variations.join(';') },
             dataType: 'json',
+            async: false,
             success: function(msg) {
-                populateResults($("#query-results"), msg);
+                var rNode = $("#query-results");
+                rNode.append("<h3>exp generated synonyms</h3>");
+                createList(rNode, msg['result'], 'exp_gen_syn');
             }
         });
+
+        // expand with the index time generated synonyms
+        var index_syn = $("#index-results > #index-synonyms > li").map(function(i, li) {
+            return $(li).text();
+        });
+        // get the current query values
+        var current_query = $("#query-results > #exp_gen_syn > li").map(function(i, li) {
+            return $(li).text();
+        });
+        var exp_index_syn = current_query;
+        $(current_query).each(function(i, name) {
+            $(index_syn).each(function(j, syn) {
+                if (name.indexOf(syn) == 0) { 
+                    $(index_syn).each(function(k, syn_replace) {
+                        var replaced = name.replace(syn, syn_replace);
+                        exp_index_syn.push(replaced);
+                    });
+                }
+            });
+        });
+        var rNode = $("#query-results");
+        rNode.append("<h3>exp index synonyms</h3>");
+        createList(rNode, exp_index_syn, 'exp_index_syn');
+
+        // get the curated synonyms
+        var curated_syn = {};
+        $("#synonym-results > #processed > li").each(function(i, li) {
+            var key = $(li).find("span.key").text();
+            var targets = $(li).find("span.target").map(function(j, span) {
+                return $(span).text();
+            });
+            curated_syn[key] = targets;
+        });
+        console.log(curated_syn);
+
+        // expand query with the curated synonyms
+        var new_query = exp_index_syn;
+        $(exp_index_syn).each(function(i, name) {
+            console.log("looking for " + name);
+            if (curated_syn[name]) {
+                console.log("adding " + curated_syn[name]);
+                $(curated_syn[name]).each(function(i, syn) {
+                    new_query.push(syn.replace("\\,", ","));
+                });
+            }
+        });
+        console.log(new_query);
+        new_query = uniqueList(new_query);
+        console.log(new_query);
+
+        // insert updated query terms list
+        var rNode = $("#query-results");
+        rNode.append("<h3>exp curated synonyms</h3>");
+        createList(rNode, new_query, 'exp_cur_syn');
+
+        // highlight query matches
+        var indexed = $("#index-results > #indexed > li").text();
+        if (indexed) {
+            $("#query-results > #exp_cur_syn > li").each(function(i, li) {
+                var name = $(li).text();
+                var rexp = new RegExp("^" + name + "$");
+                console.log("name: " + name + ", rexp: " + rexp);
+                if (rexp.test(indexed)) {
+                    console.log("got a match");
+                    $(li).css("font-weight", "bold");
+                    $(li).css("color", "green");
+                }
+            });
+        }
     });
 });
 
@@ -83,18 +194,26 @@ $(document).ready(function() {
 <body>
 
 <section id="content">
+    <header id="header">
+        <h1>Author parsing demo</h1>
+        <input type="button" id="parse-submit" value="Process" />
+    </header>
     <div id="indextime" class="parseform">
-        <label for="author">Index</label>
-        <input type="text" id="index-author" name="index-author"/>
-        <input type="button" id="index-submit" value="Parse" />
-        <div id="index-results">
+        <label for="index-input">Index</label>
+        <input type="text" id="index-input" name="index-input"/>
+        <div class="results" id="index-results">
         </div>
     </div>
     <div id="querytime" class="parseform">
-        <label for="author">Query</label>
-        <input type="text" id="query-author" name="query-author"/>
-        <input type="button" id="query-submit" value="Parse" />
-        <div id="query-results">
+        <label for="query-input">Query</label>
+        <input type="text" id="query-input" name="query-input"/>
+        <div class="results" id="query-results">
+        </div>
+    </div>
+    <div id="synonym" class="parseform">
+        <label for="synonym-input">Curated Synonyms</label>
+        <textarea id="synonym-input" name="synonym-input" rows="6" cols="20"></textarea>
+        <div class="results" id="synonym-results">
         </div>
     </div>
 </section>
