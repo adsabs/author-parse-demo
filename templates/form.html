@@ -51,6 +51,8 @@ div.results {
 <script type="text/javascript" src="{{ base_path }}/static/js/jquery-ui-1.8.16.custom.min.js"></script>
 <script type="text/javascript">
 
+var listCounter = 1;
+
 function createList(container, items, id) {
     if (!items.length) return;
     listElem = $('<ul id="' + id + '"></ul>');
@@ -91,7 +93,7 @@ $(document).ready(function() {
                         rNode.empty();
                         $.each(msg['result'], function(i, section) {
                             if (section['names'].length) {
-                                rNode.append("<h3>" + section['section'] + "</h3>");
+                                rNode.append("<h3>" + section['section'] + "(" + listCounter++ + ")</h3>");
                                 createList(rNode, section['names'], section['section']);
                             }
                         });
@@ -107,13 +109,13 @@ $(document).ready(function() {
         });
         $.ajax({
             method: "GET",
-            url: "{{ base_path }}/gen_synonyms",
+            url: "{{ base_path }}/auto_gen_synonyms",
             data: { author: variations.join(';') },
             dataType: 'json',
             async: false,
             success: function(msg) {
                 var rNode = $("#query-results");
-                rNode.append("<h3>exp generated synonyms</h3>");
+                rNode.append("<h3>exp generated synonyms (" + listCounter++ + ")</h3>");
                 createList(rNode, msg['result'], 'exp_gen_syn');
             }
         });
@@ -138,8 +140,49 @@ $(document).ready(function() {
             });
         });
         var rNode = $("#query-results");
-        rNode.append("<h3>exp index synonyms</h3>");
+        rNode.append("<h3>exp index synonyms (" + listCounter++ + ")</h3>");
         createList(rNode, exp_index_syn, 'exp_index_syn');
+
+        var exp_curated_syn = exp_index_syn;
+        $("#query-results > #exp_index_syn > li").each(function(i, query_li) {
+            var pattern = $(query_li).text();
+            $("#synonym-results > #processed > li").each(function(j, syn_li) {
+                var key = $(syn_li).find("span.key");
+                var targets = $(syn_li).find("span.target").map(function(j, span) {
+                    return $(span);
+                });
+                var rexp = new RegExp("^" + pattern + "$");
+                console.log("testing " + rexp + " against " + key.text());
+                if (rexp.test(key.text())) {
+                    var cssObj = {'font-weight': 'bold', 'background': 'yellow'};
+                    $(key).css(cssObj);
+                    $(query_li).css(cssObj);
+                    $(targets).each(function(k, target) {
+                        exp_curated_syn.push(target.text());
+                    });
+                }
+            });
+        });
+        // insert updated query terms list
+        exp_curated_syn = uniqueList(exp_curated_syn);
+        var rNode = $("#query-results");
+        rNode.append("<h3>exp curated synonyms (" + listCounter++ +")</h3>");
+        createList(rNode, exp_curated_syn, 'exp_cur_syn');
+/*
+        var exp_curated_syn = [];
+        var curated_syn = $("#synonym-results > #auto_gen_synonyms > li").map(function(i, li) {
+            return $(li).text();
+        });
+
+        $(curated_syn).each(function(i, syn) {
+            $("#query-results > #exp_index_syn > li").each(function(i, pattern) {
+                var rexp = new RegExp("^" + pattern + "$");
+                if (rexp.test(syn)) {
+                    $(curated_syn).each(function(i, target) {
+                    });
+                }
+            });
+        });
 
         // get the curated synonyms
         var curated_syn = {};
@@ -150,10 +193,10 @@ $(document).ready(function() {
             });
             curated_syn[key] = targets;
         });
-        console.log(curated_syn);
 
         // expand query with the curated synonyms
         var new_query = exp_index_syn;
+
         $(exp_index_syn).each(function(i, name) {
             console.log("looking for " + name);
             if (curated_syn[name]) {
@@ -169,8 +212,9 @@ $(document).ready(function() {
 
         // insert updated query terms list
         var rNode = $("#query-results");
-        rNode.append("<h3>exp curated synonyms</h3>");
+        rNode.append("<h3>exp curated synonyms (" + listCounter++ +")</h3>");
         createList(rNode, new_query, 'exp_cur_syn');
+        */
 
         // highlight query matches
         var indexed = $("#index-results > #indexed > li").text();
@@ -182,10 +226,11 @@ $(document).ready(function() {
                 if (rexp.test(indexed)) {
                     console.log("got a match");
                     $(li).css("font-weight", "bold");
-                    $(li).css("color", "green");
+                    $(li).css("background-color", "yellowgreen");
                 }
             });
         }
+        listCounter = 1;
     });
 });
 

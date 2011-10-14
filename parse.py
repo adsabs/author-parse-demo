@@ -44,7 +44,7 @@ def gen_synonyms(orig):
         return []
 
 def get_variations(orig, curated_proc=False):
-    variations = []
+    variations = set([orig])
     parsed = tokenizer.ads_parse_author_name(orig)
 
     last = normalize(parsed.get('last'))
@@ -56,40 +56,41 @@ def get_variations(orig, curated_proc=False):
 
     if parsed.keys() == ['last']:
         # all we got was last name
-        variations.append(last + ",.*")
+        variations.add(last + ",.*")
     else:
-        variations.append(last + ",")
+        variations.add(last + ",")
 
     if first:
         if middle:
             if len(first) > 1:
-                variations.append(last + ", " + first)
-                variations.append(last + ", " + first[0])
+                variations.add(last + ", " + first)
+                variations.add(last + ", " + first[0])
                 if len(middle) > 1:
-                    variations.append(last + ", " + first + " " + middle + r"\b.*")
-                    variations.append(last + ", " + first + " " + middle[0] + ".*")
+                    variations.add(last + ", " + first + " " + middle + r"\b.*")
+                    variations.add(last + ", " + first + " " + middle[0] + ".*")
                 elif len(middle) == 1:
-                    variations.append(last + ", " + first[0] + " " + middle + ".*")
-                    variations.append(last + ", " + first + " " + middle + ".*")
+                    variations.add(last + ", " + first[0] + " " + middle + ".*")
+                    variations.add(last + ", " + first + " " + middle + ".*")
             else:
-                variations.append(last + ", " + first + "\w*")
+                variations.add(last + ", " + first + "\w*")
                 if len(middle) > 1:
-                    variations.append(last + ", " + first + "\w* " + middle[0] + ".*")
-                    variations.append(last + ", " + first + "\w* " + middle + r"\b.*")
+                    variations.add(last + ", " + first + "\w* " + middle[0] + ".*")
+                    variations.add(last + ", " + first + "\w* " + middle + r"\b.*")
                 elif len(middle) == 1:
-                    variations.append(last + ", " + first + "\w* " + middle + r".*")
+                    variations.add(last + ", " + first + "\w* " + middle + r".*")
         else:
-            #variations.append('g) ' +last + ", " + first)
+            #variations.add('g) ' +last + ", " + first)
             if len(first) > 1:
-                variations.append(last + ", " + first + r"\b.*")
-                variations.append(last + ", " + first[0])
+                variations.add(last + ", " + first + r"\b.*")
+                variations.add(last + ", " + first[0])
                 if curated_proc:
-                    variations.append(last + ", " + first[0] + r".*")
+                    variations.add(last + ", " + first[0] + r".*")
                 else:
-                    variations.append(last + ", " + first[0] + r"\b.*")
+                    variations.add(last + ", " + first[0] + r"\b.*")
             elif len(first) == 1:
-                variations.append(last + ", " + first + ".*")
+                variations.add(last + ", " + first + ".*")
 
+    variations = list(variations)
     variations.sort(key=len)
     variations.reverse()
     return variations
@@ -100,12 +101,15 @@ def proc_synonyms(orig):
     for a in orig:
         targets = orig.copy()
         targets.remove(a)
-        targets = [x.replace(',','\,') for x in targets]
-        proc_syn.append(('<span class="key">%s</span> => ' % a) + ", ".join(['<span class="target">%s</span>' % x for x in targets]))
-        targets = [x + r'\b.*' for x in targets]
-        for key in get_variations(a, curated_proc=True):
-            key = '<span class="key">%s</span>' % key
-            proc_syn.append(key + " => " + ", ".join(['<span class="target">%s</span>' % x for x in targets]))
+#        targets = [x.replace(',','\,') for x in targets]
+#        proc_syn.append(('<span class="key">%s</span> => ' % a) + ", ".join(['<span class="target">%s</span>' % x for x in targets]))
+#        targets = [x + r'\b.*' for x in targets]
+        exp_targets = set()
+        [exp_targets.update(get_variations(x, curated_proc=True)) for x in targets]
+        exp_targets = [x.replace(',','\,') for x in exp_targets]
+#        for key in get_variations(a, curated_proc=True):
+        key = '<span class="key">%s</span>' % a
+        proc_syn.append(key + " => " + ", ".join(['<span class="target">%s</span>' % x for x in exp_targets]))
     return proc_syn
 
 @app.route('/')
@@ -135,7 +139,7 @@ def author_query():
     results.append({ 'section': 'variations', 'names': variations })
     return flask.jsonify(result=results)
 
-@app.route('/gen_synonyms')
+@app.route('/auto_gen_synonyms')
 def get_gen_synonyms():
     results = set()
     input = flask.request.args.get('author')
@@ -154,13 +158,19 @@ def author_synonyms():
     input = flask.request.args.get('author')
     orig_syn = [normalize(x) for x in re.split(r'\s*\n\s*', input)]
     results.append({ 'section': 'original', 'names': orig_syn })
-    expanded_syn = set(orig_syn[:])
+    expanded_syn = set(orig_syn)
     for orig in orig_syn:
         expanded_syn.update(gen_synonyms(orig))
     expanded_syn = list(expanded_syn)
     results.append({ 'section': 'auto-gen synonyms', 'names': expanded_syn })
     proc_syn = proc_synonyms(expanded_syn)
     results.append({ 'section': 'processed', 'names': proc_syn })
+    return flask.jsonify(result=results)
+
+@app.route('/variations')
+def variations():
+    input = flask.request.args.get('author')
+    results = get_variations(input, curated_proc=True)
     return flask.jsonify(result=results)
 
 if __name__ == '__main__':
