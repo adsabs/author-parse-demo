@@ -25,7 +25,7 @@ def normalize(s):
 mappings = {
     u'\u0308': 'E',
     u'\u030a': 'A',
-    u'\xf8': 'OE',
+    u'\u0301': 'E',
     u'\u030c': 'H'
 }
 
@@ -37,11 +37,8 @@ def gen_synonyms(orig):
     for k,v in mappings.items():
         if translit.find(k) != -1:
             translit = translit.replace(k, v)
-    syn.add(translit)
-    if len(syn) > 1:
-        return list(syn)
-    else:
-        return []
+    syn.add(unicodedata.normalize('NFC', translit))
+    return list(syn)
 
 def get_variations(orig, curated_proc=False):
     variations = set([orig])
@@ -67,15 +64,18 @@ def get_variations(orig, curated_proc=False):
                 variations.add(last + ", " + first[0])
                 if len(middle) > 1:
                     variations.add(last + ", " + first + " " + middle + r"\b.*")
-                    variations.add(last + ", " + first + " " + middle[0] + ".*")
+                    variations.add(last + ", " + first[0] + "\w* " + middle[0] + ".*")
+                    if not curated_proc:
+                        variations.add(last + ", " + first + " " + middle[0] + ".*")
                 elif len(middle) == 1:
                     variations.add(last + ", " + first[0] + " " + middle + ".*")
                     variations.add(last + ", " + first + " " + middle + ".*")
             else:
                 variations.add(last + ", " + first + "\w*")
                 if len(middle) > 1:
-                    variations.add(last + ", " + first + "\w* " + middle[0] + ".*")
                     variations.add(last + ", " + first + "\w* " + middle + r"\b.*")
+                    if not curated_proc:
+                        variations.add(last + ", " + first + "\w* " + middle[0] + ".*")
                 elif len(middle) == 1:
                     variations.add(last + ", " + first + "\w* " + middle + r".*")
         else:
@@ -83,9 +83,7 @@ def get_variations(orig, curated_proc=False):
             if len(first) > 1:
                 variations.add(last + ", " + first + r"\b.*")
                 variations.add(last + ", " + first[0])
-                if curated_proc:
-                    variations.add(last + ", " + first[0] + r".*")
-                else:
+                if not curated_proc:
                     variations.add(last + ", " + first[0] + r"\b.*")
             elif len(first) == 1:
                 variations.add(last + ", " + first + ".*")
@@ -120,23 +118,23 @@ def author_form():
 def author_index():
     results = []
     author = flask.request.args.get('author')
-    results.append({ 'section': 'original', 'names': [author] })
+    results.append({ 'heading': 'Original', 'id': 'index-orig', 'names': [author] })
     normalized = normalize(author)
-    results.append({ 'section': 'normalized', 'names': [normalized] })
+    results.append({ 'heading': 'Normalized', 'id': 'index-norm', 'names': [normalized] })
     syn = gen_synonyms(normalized)
-    results.append({ 'section': 'index-synonyms', 'names': syn })
-    results.append({ 'section': 'indexed', 'names': [normalized] })
+    results.append({ 'heading': 'Auto-generated Synonyms', 'id': 'index-auto-syn', 'names': syn })
+    results.append({ 'heading': 'Indexed Value', 'id': 'indexed', 'names': [normalized] })
     return flask.jsonify(result=results)
 
 @app.route('/query')
 def author_query():
     results = []
     author = flask.request.args.get('author')
-    results.append({ 'section': 'original', 'names': [author] })
+    results.append({ 'heading': 'Original', 'id': 'query-orig', 'names': [author] })
     normalized = normalize(author)
-    results.append({ 'section': 'normalized', 'names': [normalized] })
+    results.append({ 'heading': 'Normalized', 'id': 'query-norm', 'names': [normalized] })
     variations = get_variations(normalized)
-    results.append({ 'section': 'variations', 'names': variations })
+    results.append({ 'heading': 'Name Variations', 'id': 'query-variations', 'names': variations })
     return flask.jsonify(result=results)
 
 @app.route('/auto_gen_synonyms')
@@ -157,14 +155,14 @@ def author_synonyms():
     results = []
     input = flask.request.args.get('author')
     orig_syn = [normalize(x) for x in re.split(r'\s*\n\s*', input)]
-    results.append({ 'section': 'original', 'names': orig_syn })
+    results.append({ 'heading': 'Original', 'id': 'original', 'names': orig_syn })
     expanded_syn = set(orig_syn)
     for orig in orig_syn:
         expanded_syn.update(gen_synonyms(orig))
     expanded_syn = list(expanded_syn)
-    results.append({ 'section': 'auto-gen synonyms', 'names': expanded_syn })
+    results.append({ 'heading': 'Auto-generated Synonyms', 'id': 'syn-auto-syn', 'names': expanded_syn })
     proc_syn = proc_synonyms(expanded_syn)
-    results.append({ 'section': 'processed', 'names': proc_syn })
+    results.append({ 'heading': 'Processed', 'id': 'processed', 'names': proc_syn })
     return flask.jsonify(result=results)
 
 @app.route('/variations')

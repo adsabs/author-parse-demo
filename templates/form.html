@@ -80,6 +80,8 @@ $(document).ready(function() {
         // get the inital data
         $(['index','query','synonym']).each(function(i, phase) {
             console.log(phase);
+            var rNode = $("#" + phase + "-results");
+            rNode.empty();
             var input = $("#" + phase + "-input").val();
             if (input.search(/\w+/) != -1) {
                 $.ajax({
@@ -89,12 +91,10 @@ $(document).ready(function() {
                     dataType: 'json',
                     async: false,
                     success: function(msg) {
-                        var rNode = $("#" + phase + "-results");
-                        rNode.empty();
-                        $.each(msg['result'], function(i, section) {
-                            if (section['names'].length) {
-                                rNode.append("<h3>" + section['section'] + "(" + listCounter++ + ")</h3>");
-                                createList(rNode, section['names'], section['section']);
+                        $.each(msg['result'], function(i, list) {
+                            if (list['names'].length) {
+                                rNode.append("<h3>" + list['heading'] + "(" + listCounter++ + ")</h3>");
+                                createList(rNode, list['names'], list['id']);
                             }
                         });
                     }
@@ -104,7 +104,7 @@ $(document).ready(function() {
 
         // fetch synonyms for the query variations
         var variations = [];
-        $("#query-results > #variations > li").each(function(i, li) {
+        $("#query-results > #query-variations > li").each(function(i, li) {
             variations.push($(li).text());
         });
         $.ajax({
@@ -115,36 +115,36 @@ $(document).ready(function() {
             async: false,
             success: function(msg) {
                 var rNode = $("#query-results");
-                rNode.append("<h3>exp generated synonyms (" + listCounter++ + ")</h3>");
-                createList(rNode, msg['result'], 'exp_gen_syn');
+                rNode.append("<h3>Auto-generated Synonyms (" + listCounter++ + ")</h3>");
+                createList(rNode, msg['result'], 'query-auto-syn');
             }
         });
 
         // expand with the index time generated synonyms
-        var index_syn = $("#index-results > #index-synonyms > li").map(function(i, li) {
+        var index_syns = $("#index-results > #index-auto-syn > li").map(function(i, li) {
             return $(li).text();
         });
         // get the current query values
-        var current_query = $("#query-results > #exp_gen_syn > li").map(function(i, li) {
+        var current_query = $("#query-results > #query-auto-syn > li").map(function(i, li) {
             return $(li).text();
         });
         var exp_index_syn = current_query;
-        $(current_query).each(function(i, name) {
-            $(index_syn).each(function(j, syn) {
-                if (name.indexOf(syn) == 0) { 
-                    $(index_syn).each(function(k, syn_replace) {
-                        var replaced = name.replace(syn, syn_replace);
-                        exp_index_syn.push(replaced);
+        $(current_query).each(function(i, pattern) {
+            $(index_syns).each(function(j, idx_syn) {
+                var rexp = new RegExp("^" + pattern + "$");
+                if (rexp.test(idx_syn)) {
+                    $(index_syns).each(function(k, idx_syn_replace) {
+                        exp_index_syn.push(idx_syn_replace);
                     });
                 }
             });
         });
         var rNode = $("#query-results");
-        rNode.append("<h3>exp index synonyms (" + listCounter++ + ")</h3>");
-        createList(rNode, exp_index_syn, 'exp_index_syn');
+        rNode.append("<h3>Expand w/ Index Synonyms (" + listCounter++ + ")</h3>");
+        createList(rNode, exp_index_syn, 'query-index-syn');
 
         var exp_curated_syn = exp_index_syn;
-        $("#query-results > #exp_index_syn > li").each(function(i, query_li) {
+        $("#query-results > #query-index-syn > li").each(function(i, query_li) {
             var pattern = $(query_li).text();
             $("#synonym-results > #processed > li").each(function(j, syn_li) {
                 var key = $(syn_li).find("span.key");
@@ -158,7 +158,7 @@ $(document).ready(function() {
                     $(key).css(cssObj);
                     $(query_li).css(cssObj);
                     $(targets).each(function(k, target) {
-                        exp_curated_syn.push(target.text());
+                        exp_curated_syn.push(target.text().replace("\\,", ","));
                     });
                 }
             });
@@ -166,67 +166,23 @@ $(document).ready(function() {
         // insert updated query terms list
         exp_curated_syn = uniqueList(exp_curated_syn);
         var rNode = $("#query-results");
-        rNode.append("<h3>exp curated synonyms (" + listCounter++ +")</h3>");
-        createList(rNode, exp_curated_syn, 'exp_cur_syn');
-/*
-        var exp_curated_syn = [];
-        var curated_syn = $("#synonym-results > #auto_gen_synonyms > li").map(function(i, li) {
-            return $(li).text();
-        });
-
-        $(curated_syn).each(function(i, syn) {
-            $("#query-results > #exp_index_syn > li").each(function(i, pattern) {
-                var rexp = new RegExp("^" + pattern + "$");
-                if (rexp.test(syn)) {
-                    $(curated_syn).each(function(i, target) {
-                    });
-                }
-            });
-        });
-
-        // get the curated synonyms
-        var curated_syn = {};
-        $("#synonym-results > #processed > li").each(function(i, li) {
-            var key = $(li).find("span.key").text();
-            var targets = $(li).find("span.target").map(function(j, span) {
-                return $(span).text();
-            });
-            curated_syn[key] = targets;
-        });
-
-        // expand query with the curated synonyms
-        var new_query = exp_index_syn;
-
-        $(exp_index_syn).each(function(i, name) {
-            console.log("looking for " + name);
-            if (curated_syn[name]) {
-                console.log("adding " + curated_syn[name]);
-                $(curated_syn[name]).each(function(i, syn) {
-                    new_query.push(syn.replace("\\,", ","));
-                });
-            }
-        });
-        console.log(new_query);
-        new_query = uniqueList(new_query);
-        console.log(new_query);
-
-        // insert updated query terms list
-        var rNode = $("#query-results");
-        rNode.append("<h3>exp curated synonyms (" + listCounter++ +")</h3>");
-        createList(rNode, new_query, 'exp_cur_syn');
-        */
+        rNode.append("<h3>Expand w/ Curated Synonyms (" + listCounter++ +")</h3>");
+        createList(rNode, exp_curated_syn, 'query-curated-syn');
 
         // highlight query matches
-        var indexed = $("#index-results > #indexed > li").text();
+        var indexed = $("#index-results > #indexed > li");
         if (indexed) {
-            $("#query-results > #exp_cur_syn > li").each(function(i, li) {
+            $("#query-results > #query-curated-syn > li").each(function(i, li) {
                 var name = $(li).text();
                 var rexp = new RegExp("^" + name + "$");
                 console.log("name: " + name + ", rexp: " + rexp);
-                if (rexp.test(indexed)) {
+                if (rexp.test(indexed.text())) {
                     console.log("got a match");
                     $(li).css("font-weight", "bold");
                     $(li).css("background-color", "yellowgreen");
+                    $(indexed).css("font-weight", "bold");
+                    $(indexed).css("background-color", "yellowgreen");
+                
                 }
             });
         }
