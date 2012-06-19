@@ -64,10 +64,10 @@ def get_variations(orig, curated_proc=False):
                 variations.add(last + ", " + first[0])
                 if len(middle) > 1:
                     variations.add(last + ", " + first + " " + middle + r"\b.*")
-                    variations.add(last + ", " + first[0] + "\w* " + middle[0] + ".*")
+                    variations.add(last + ", " + first[0] + " " + middle[0] + r"\b.*")
                     if not curated_proc:
-                        variations.add(last + ", " + first + " " + middle[0] + ".*")
-                elif len(middle) == 1:
+                        variations.add(last + ", " + first + " " + middle[0] + r"\b.*")
+                elif len(middle) == 1 and not curated_proc:
                     variations.add(last + ", " + first[0] + " " + middle + ".*")
                     variations.add(last + ", " + first + " " + middle + ".*")
             else:
@@ -75,7 +75,7 @@ def get_variations(orig, curated_proc=False):
                 if len(middle) > 1:
                     variations.add(last + ", " + first + "\w* " + middle + r"\b.*")
                     if not curated_proc:
-                        variations.add(last + ", " + first + "\w* " + middle[0] + ".*")
+                        variations.add(last + ", " + first + "\w* " + middle[0] + r"\b.*")
                 elif len(middle) == 1:
                     variations.add(last + ", " + first + "\w* " + middle + r".*")
         else:
